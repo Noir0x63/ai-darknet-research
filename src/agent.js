@@ -144,22 +144,26 @@ CRITICAL RULES:
     console.log(`[Tor Agent] Starting research for query: "${userQuery}"`);
 
     const systemPrompt = this.#buildSystemPrompt();
-    const history = [...actualHistory];
-    let currentQuery = userQuery;
+    const history = [...actualHistory, { role: 'user', content: userQuery }];
 
     for (let iteration = 1; iteration <= this.#maxIterations; iteration++) {
       console.log(`\n--- Loop Iteration ${iteration} of ${this.#maxIterations} ---`);
 
-      let finalTurnWarning = '';
-      if (iteration === this.#maxIterations) {
-        finalTurnWarning = '\n\n**CRITICAL WARNING**: This is your final turn. You must NOT perform another Tool Action. Summarize all the data you gathered in previous steps and output your Final Answer now.';
-      }
-
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: currentQuery + finalTurnWarning }
+        ...history
       ];
+
+      // If it is the final turn, append a warning to the last user message
+      if (iteration === this.#maxIterations && messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === 'user') {
+          messages[messages.length - 1] = {
+            ...lastMsg,
+            content: lastMsg.content + '\n\n**CRITICAL WARNING**: This is your final turn. You must NOT perform another Tool Action. Summarize all the data you gathered in previous steps and output your Final Answer now.'
+          };
+        }
+      }
 
       const llmOutput = await this.#llmService.generateCompletion(messages);
       console.log(`[LLM Response]:\n${llmOutput}`);
@@ -182,8 +186,8 @@ CRITICAL RULES:
         const tool = this.#tools.find(t => t.name === action);
         if (!tool) {
           const errMsg = `Observation: Tool "${action}" does not exist. Choose from: ${this.#tools.map(t => t.name).join(', ')}`;
-          currentQuery = errMsg;
           history.push({ role: 'assistant', content: llmOutput });
+          history.push({ role: 'user', content: errMsg });
           onEvent({ type: 'observation', content: errMsg });
           continue;
         }
@@ -200,13 +204,14 @@ CRITICAL RULES:
         console.log(`[Tool Output (Sample)]: ${observation.substring(0, 300)}...`);
         onEvent({ type: 'observation', content: observation });
 
-        // Record the reasoning step and the tool result
+        // Record the reasoning step and the tool result in alternating role order
         history.push({ role: 'assistant', content: llmOutput });
-        currentQuery = `Observation: ${observation}`;
+        history.push({ role: 'user', content: `Observation: ${observation}` });
       } else {
         // Fallback for unrecognized formats
         const formatMsg = `Observation: Your response did not follow the required Format 1 or Format 2. Make sure you use 'Thought:' and either 'Action: ToolName({"arg": "val"})' or 'Final Answer: <conclusion>'.`;
-        currentQuery = formatMsg;
+        history.push({ role: 'assistant', content: llmOutput });
+        history.push({ role: 'user', content: formatMsg });
         onEvent({ type: 'observation', content: formatMsg });
       }
     }
