@@ -614,12 +614,17 @@ document.addEventListener('DOMContentLoaded', () => {
     showActivity('Conectando con el agente...');
     scrollToBottom();
 
-    // Agent Message Bubble (Structured in Gemini style)
+    // Agent Message Bubble (Structured in Gemini style with loading skeleton)
     const agentNode = document.createElement('div');
-    agentNode.className = 'message-node message-agent';
+    agentNode.className = 'message-node message-agent loading';
     agentNode.innerHTML = `
       ${NOIR_AVATAR_SVG}
       <div class="message-content-wrapper">
+        <div class="agent-skeleton">
+          <div class="skeleton-line" style="width: 100%;"></div>
+          <div class="skeleton-line" style="width: 85%;"></div>
+          <div class="skeleton-line" style="width: 60%;"></div>
+        </div>
         <div class="steps-container"></div>
         <div class="bubble-agent">
           <div class="agent-answer hidden"></div>
@@ -629,6 +634,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const stepsContainer = agentNode.querySelector('.steps-container');
     const answerCard = agentNode.querySelector('.agent-answer');
+    const skeleton = agentNode.querySelector('.agent-skeleton');
+
+    const clearLoadingState = () => {
+      if (skeleton) {
+        skeleton.remove();
+      }
+      agentNode.classList.remove('loading');
+    };
 
     chatMessages.appendChild(agentNode);
     scrollToBottom();
@@ -679,6 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const { type, data } = event;
 
           if (type === 'thought') {
+            clearLoadingState();
             if (currentThoughtAccordion) currentThoughtAccordion.close();
             if (currentToolAccordion) currentToolAccordion.close();
 
@@ -692,6 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           else if (type === 'action') {
+            clearLoadingState();
             if (currentThoughtAccordion) currentThoughtAccordion.close();
             if (currentToolAccordion) currentToolAccordion.close();
 
@@ -715,6 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           else if (type === 'finalAnswer') {
+            clearLoadingState();
             hideActivity();
             if (currentThoughtAccordion) currentThoughtAccordion.close();
             if (currentToolAccordion) currentToolAccordion.close();
@@ -725,6 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           else if (type === 'error') {
+            clearLoadingState();
             hideActivity();
             const errorDiv = document.createElement('div');
             errorDiv.className = 'bubble-user';
@@ -739,6 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (error) {
       console.error(error);
+      clearLoadingState();
       hideActivity();
       const errorDiv = document.createElement('div');
       errorDiv.className = 'bubble-user';
@@ -748,6 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
       agentNode.querySelector('.message-content-wrapper').appendChild(errorDiv);
       scrollToBottom();
     } finally {
+      clearLoadingState();
       hideActivity();
       queryInput.disabled = false;
       submitBtn.disabled = false;
